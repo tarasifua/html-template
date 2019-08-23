@@ -21,7 +21,7 @@ var gulp = require('gulp'),
 gulp.task('browser-sync', function () {
 	browserSync({
 		server: {
-			baseDir: 'app'
+			baseDir: 'dist'
 		},
 		notify: false,
 		// open: false,
@@ -32,30 +32,45 @@ gulp.task('browser-sync', function () {
 
 // Sass|Scss Styles
 gulp.task('styles', function () {
-	return gulp.src('app/' + syntax + '/**/*.' + syntax + '')
+	return gulp.src('src/' + syntax + '/**/*.' + syntax + '')
 		.pipe(sass({ outputStyle: 'expanded' }).on("error", notify.onError()))
 		.pipe(rename({ suffix: '.min', prefix: '' }))
 		.pipe(autoprefixer(['last 15 versions']))
 		.pipe(cleancss({ level: { 1: { specialComments: 0 } } })) // Opt., comment out when debugging
-		.pipe(gulp.dest('app/css'))
+		.pipe(gulp.dest('dist/css'))
 		.pipe(browserSync.stream())
 });
 
 // JS
 gulp.task('scripts', function () {
 	return gulp.src([
-		'app/libs/jquery/dist/jquery.min.js',
-		'app/js/common.js', // Always at the end
+		'src/js/libs/jquery/jquery.min.js',
+		'src/js/common.js', // Always at the end
 	])
 		.pipe(concat('scripts.min.js'))
 		// .pipe(uglify()) // Mifify js (opt.)
-		.pipe(gulp.dest('app/js'))
+		.pipe(gulp.dest('dist/js'))
 		.pipe(browserSync.reload({ stream: true }))
 });
 
 // HTML Live Reload
 gulp.task('code', function () {
-	return gulp.src('app/*.html')
+	return gulp.src('src/*.html')
+		.pipe(gulp.dest('dist/'))
+		.pipe(browserSync.reload({ stream: true }))
+});
+
+// Copy Fonts
+gulp.task('copyfonts', function () {
+	return gulp.src('src/fonts/**/*.{eot,svg,ttf,woff,woff2}')
+		.pipe(gulp.dest('dist/fonts/'))
+		.pipe(browserSync.reload({ stream: true }))
+});
+
+// Copy Favicon
+gulp.task('favicon', function () {
+	return gulp.src('src/img/favicon/*.{jpg,png,gif,webm,ico}')
+		.pipe(gulp.dest('dist/img/favicon/'))
 		.pipe(browserSync.reload({ stream: true }))
 });
 
@@ -63,7 +78,7 @@ gulp.task('code', function () {
 gulp.task('rsync', function () {
 	return gulp.src('app/**')
 		.pipe(rsync({
-			root: 'app/',
+			root: 'dist/',
 			hostname: 'username@yousite.com',
 			destination: 'yousite/public_html/',
 			// include: ['*.htaccess'], // Includes files to deploy
@@ -77,55 +92,36 @@ gulp.task('rsync', function () {
 
 // Images @x1 & @x2 + Compression | Required graphicsmagick (sudo apt update; sudo apt install graphicsmagick)
 gulp.task('img1x', function () {
-	return gulp.src('app/img/_src/**/*.*')
+	return gulp.src('src/img/*.*')
 		.pipe(imageResize({ width: '50%' }))
 		.pipe(imagemin())
-		.pipe(gulp.dest('app/img/@1x/'))
+		.pipe(gulp.dest('dist/img/@1x/'))
 });
 gulp.task('img2x', function () {
-	return gulp.src('app/img/_src/**/*.*')
+	return gulp.src('src/img/*.*')
 		.pipe(imageResize({ width: '100%' }))
 		.pipe(imagemin())
-		.pipe(gulp.dest('app/img/@2x/'))
+		.pipe(gulp.dest('dist/img/@2x/'))
 });
 
 // Clean @*x IMG's
 gulp.task('cleanimg', function () {
-	return del(['app/img/@*'], { force: true })
+	return del(['dist/img/@*'], { force: true })
 });
 
-// If Gulp Version 3
-if (gulpVersion == 3) {
+// TASKS____________________________________________________________________________
+// Img Processing Task for Gulp 4
+gulp.task('img', gulp.parallel('img1x', 'img2x'));
 
-	// Img Processing Task for Gulp 3
-	gulp.task('img', ['img1x', 'img2x']);
+gulp.task('watch', function () {
+	gulp.watch('src/' + syntax + '/**/*.' + syntax + '', gulp.parallel('styles'));
+	gulp.watch(['js/libs/**/*.js', 'src/js/common.js'], gulp.parallel('scripts'));
+	gulp.watch('src/*.html', gulp.parallel('code'));
+	gulp.watch('src/fonts/**/*.*', gulp.parallel('copyfonts'));
+	gulp.watch('src/img/favicon/*.{jpg,png,gif,webm,ico}', gulp.parallel('favicon'));
+	gmWatch && gulp.watch('src/img/**/*', gulp.parallel('img')); // GraphicsMagick watching image sources if allowed.
+});
+gmWatch ? gulp.task('default', gulp.parallel('img', 'copyfonts', 'favicon', 'styles', 'scripts', 'browser-sync', 'watch'))
+	: gulp.task('default', gulp.parallel('copyfonts', 'favicon', 'styles', 'scripts', 'browser-sync', 'watch'));
 
-	var taskArr = ['styles', 'scripts', 'browser-sync'];
-	gmWatch && taskArr.unshift('img');
 
-	gulp.task('watch', taskArr, function () {
-		gulp.watch('app/' + syntax + '/**/*.' + syntax + '', ['styles']);
-		gulp.watch(['libs/**/*.js', 'app/js/common.js'], ['scripts']);
-		gulp.watch('app/*.html', ['code']);
-		gmWatch && gulp.watch('app/img/_src/**/*', ['img']);
-	});
-	gulp.task('default', ['watch']);
-
-};
-
-// If Gulp Version 4
-if (gulpVersion == 4) {
-
-	// Img Processing Task for Gulp 4
-	gulp.task('img', gulp.parallel('img1x', 'img2x'));
-
-	gulp.task('watch', function () {
-		gulp.watch('app/' + syntax + '/**/*.' + syntax + '', gulp.parallel('styles'));
-		gulp.watch(['libs/**/*.js', 'app/js/common.js'], gulp.parallel('scripts'));
-		gulp.watch('app/*.html', gulp.parallel('code'));
-		gmWatch && gulp.watch('app/img/_src/**/*', gulp.parallel('img')); // GraphicsMagick watching image sources if allowed.
-	});
-	gmWatch ? gulp.task('default', gulp.parallel('img', 'styles', 'scripts', 'browser-sync', 'watch'))
-		: gulp.task('default', gulp.parallel('styles', 'scripts', 'browser-sync', 'watch'));
-
-};
